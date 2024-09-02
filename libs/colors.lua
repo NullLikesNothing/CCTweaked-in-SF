@@ -1,3 +1,4 @@
+-- Basic color library for `framebuffer`
 colors = {}
 colors.white     = 1
 colors.orange    = 2
