@@ -1,6 +1,8 @@
 --@name ComputerCraft pre-bios
 --@author Lumi
 
+-- This sets up the environment to allow `bios.lua` to boot.
+
 local setmetatable = setmetatable
 local ss = bit.stringstream
 local spt = string.split
@@ -14,6 +16,8 @@ local loadstring = loadstring
 local assert = assert
 local t_concat = table.concat
 local select = select
+
+debug.getregistry = debug.getregistry or function() end
 
 local function mkdir()
     return {
