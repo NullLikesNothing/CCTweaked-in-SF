@@ -1,4 +1,4 @@
 # TODO:
 - Finish implementing psuedo `fs`
-- Implement `peripheral`
+- Finish implementing `peripheral`
 - User input
