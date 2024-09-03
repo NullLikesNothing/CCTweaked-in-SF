@@ -8,6 +8,7 @@ IGNORE["/main.lua"] = true
 IGNORE["/readme.md"] = true
 IGNORE["/todo.md"] = true
 IGNORE["/.gitignore"] = true
+IGNORE["/cl_fragment.lua"] = true
 
 local MAX_NET_BYTES = net.getBytesLeft()
 local _print = _G.print
