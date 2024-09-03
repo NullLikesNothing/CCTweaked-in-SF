@@ -17,8 +17,6 @@ local assert = assert
 local t_concat = table.concat
 local select = select
 
-debug.getregistry = debug.getregistry or function() end
-
 local function mkdir()
     return {
         t = "d",
@@ -26,24 +24,25 @@ local function mkdir()
     }
 end
 
-local pt = printTable
-local function printTable( t )
-    local as = _G.print
-    _G.print = print
-    pt( t )
-    _G.print = as
-end
-
-local fsys = mkdir()
 local scripts = ...
 
 function require( a )
-    local d = scripts["libs/" .. tostring(a) .. ".lua"]
+    local d = scripts["libs/" .. tostring( a ) .. ".lua"]
     if d then
-        return assert( loadstring( d ) )() or true
+        return assert( loadstring( d, "libs/" .. tostring( name ) .. ".lua" ) )() or true
     end
     error( "lib " .. tostring( a ) .. " not found!" )
 end
+
+local function doStub( name, ... )
+    local d = scripts["stubs/" .. tostring( name ) .. ".lua"]
+    if d then
+        return assert( loadstring( d, "stubs/" .. tostring( name ) .. ".lua" ) )( ... ) or true
+    end
+    error( "stub " .. tostring( name ) .. " is missing!" )
+end
+
+doStub( "simple_fixes" )
 
 local reqexpect = require( "expect" )
 local expect = reqexpect.expect
@@ -51,7 +50,6 @@ local field = reqexpect.field
 
 require( "colors" )
 
--- assert( loadstring( scripts["libs/framebuffer.lua"], "libs/framebuffer.lua" ) )( scripts )
 _G.term = { native = function()
     return setmetatable( {}, { __index = function( self, key )
         setmetatable( self, { __index = term } )
@@ -61,7 +59,7 @@ end }
 local framebuffer = require( "framebuffer" )
 local term = framebuffer.buffer( framebuffer.empty( true, 51, 19 ) )
 
-require = nil
+local fsys = { t = "d", f = {} }
 local function recursive_mkdir( pth )
     local ks = spt( pth, "/" )
     local last = fsys
@@ -77,174 +75,6 @@ local function recursive_mkdir( pth )
         last = last.f[v]
     end
 end
--- printTable( fsys )
-
-local function CLOSED_FILE()
-    error( "attempt to use a closed file" )
-end
-local sub = string.sub
-
-local snp = string.normalizePath
-local fs = {}
-function fs.open( file, mode )
-    expect( 1, file, "string" )
-    file = snp( file )
-    expect( 2, mode, "string" )
-    if mode ~= "r" and mode ~= "rb" and mode ~= "w" and mode ~= "wb" then
-        return nil, "Unsupported mode"
-    end
-    if s_bw( file, "rom/" ) and mode ~= "r" and mode ~= "rb" then return nil, "/" .. tostring( file ) .. ": Access denied" end
-    if mode == "w" or mode == "wb" then
-        local ks = spt( file, "/" )
-        local last = fsys
-        for i = 1, #ks - 1 do
-            if not last.f[ks[i]] then
-                return
-            end
-            last = last.f[ks[i]]
-        end
-
-        last.f[ks[#ks]] = last.f[ks[#ks]] or { d = "", t = "f" }
-        last = last.f[ks[#ks]]
-        local f = ss( "" )
-        local t = {}
-        function t.close()
-            t.close = CLOSED_FILE
-            t.write = CLOSED_FILE
-            t.writeLine = CLOSED_FILE
-            t.seek = CLOSED_FILE
-            t.flush = CLOSED_FILE
-
-            last.d = f:getString()
-        end
-        function t.flush()
-            last.d = f:getString()
-        end
-        function t.write( ... )
-            local t, n = { ... }, select( "#", ... )
-            f:write( tostring( d ) )
-        end
-        function t.writeLine( d )
-            f:write( tostring( d ) .. "\n" )
-        end
-        function t.seek( mode, n )
-            if mode == "set" then
-                f:seek( n + 1 )
-                return n
-            elseif mode == "cur" or mode == nil then
-                n = f:tell() + n
-                f:seek( n + 1 )
-                return n
-            elseif mode == "end" then
-                n = f:size() - n
-                f:seek( n + 1 )
-                return n
-            end
-        end
-
-        return t
-    end
-    if mode == "a" or mode == "ab" then
-        local ks = spt( file, "/" )
-        local last = fsys
-        for i = 1, #ks - 1 do
-            if not last.f[ks[i]] then
-                return
-            end
-            last = last.f[ks[i]]
-        end
-
-        last.f[ks[#ks]] = last.f[ks[#ks]] or { d = "", t = "f" }
-        last = last.f[ks[#ks]]
-        local f = ss( last.d or "" )
-        f:seek( f:size() + 1 )
-        local t = {}
-        function t.close()
-            t.close = CLOSED_FILE
-            t.write = CLOSED_FILE
-            t.writeLine = CLOSED_FILE
-            t.seek = CLOSED_FILE
-            t.flush = CLOSED_FILE
-
-            last.d = f:getString()
-        end
-        function t.flush()
-            last.d = f:getString()
-        end
-        function t.write( ... )
-            local t, n = { ... }, select( "#", ... )
-            f:write( tostring( d ) )
-        end
-        function t.writeLine( d )
-            f:write( tostring( d ) .. "\n" )
-        end
-
-        return t
-    end
-    if mode == "r" or mode == "rb" then
-        local ks = spt( file, "/" )
-        local last = fsys
-        for i = 1, #ks do
-            if not last.f[ks[i]] then
-                return nil, "/" .. tostring( file ) .. ": No such file"
-            end
-            -- print( ks[i] )
-            last = last.f[ks[i]]
-        end
-        if not last then return nil, "/" .. tostring( file ) .. ": No such file" end
-        if last.t ~= "f" then return nil, "/" .. tostring( file ) .. ": Not a file" end
-
-        local f = ss( last.d or "" )
-        local t = {}
-        function t.close()
-            t.close = CLOSED_FILE
-            t.read = CLOSED_FILE
-            t.readLine = CLOSED_FILE
-            t.readAll = CLOSED_FILE
-            t.seek = CLOSED_FILE
-        end
-        function t.read( n )
-            local r = f:read( n )
-            return #r ~= 0 and r or nil
-        end
-        function t.readLine( trail )
-            local r = f:readUntil( 0x0A )
-            if not trail then
-                r = sub( r, 1, #r - 1 )
-            end
-            return #r ~= 0 and r or nil
-        end
-        function t.readAll( d )
-            f:seek( f:size() + 1 )
-            return f:getString()
-        end
-        function t.seek( mode, n )
-            if mode == "set" then
-                f:seek( n + 1 )
-                return n
-            elseif mode == "cur" or mode == nil then
-                n = f:tell() + n
-                f:seek( n + 1 )
-                return n
-            elseif mode == "end" then
-                n = f:size() - n
-                f:seek( n + 1 )
-                return n
-            end
-        end
-        return t
-    end
-
-    return nil, "/" .. tostring( file ) .. ": No such file"
-end
-function fs.combine( ... )
-    for i = 1, select( "#", ... ) do
-        expect( i, select( i, ... ), "string" )
-    end
-    return snp( t_concat( { ... }, "/" ) )
-end
-fs.getName = string.getFileFromFilename
-fs.getDir = string.getPathFromFilename
 
 for k, v in pairs( scripts ) do
     if k:startWith( "rom/" ) then
@@ -262,181 +92,16 @@ for k, v in pairs( scripts ) do
     end
 end
 
-function fs.exists( pth )
-    expect( 1, pth, "string" )
-    pth = snp( pth )
-    local ks = spt( pth, "/" )
-    local last = fsys
-    for i = 1, #ks do
-        if not last.f[ks[i]] then
-            return false
-        end
-        last = last.f[ks[i]]
-    end
-    return last ~= nil
-end
-function fs.isDir( pth )
-    expect( 1, pth, "string" )
-    pth = snp( pth )
-    local ks = spt( pth, "/" )
-    local last = fsys
-    for i = 1, #ks do
-        if not last.f[ks[i]] then
-            return false
-        end
-        last = last.f[ks[i]]
-        -- print( ks[i] )
-    end
-    return last.t == "d"
-end
-function fs.list( pth )
-    expect( 1, pth, "string" )
-    pth = snp( pth )
-    local ks = spt( pth, "/" )
-    local last = fsys
-    for i = 1, #ks do
-        if not last.f[ks[i]] then
-            return nil
-        end
-        last = last.f[ks[i]]
-    end
-    local t = {}
-    for k, v in pairs( last.f ) do
-        t[#t + 1] = k
-    end
+_G.fs = doStub( "fs", fsys )
+_G.settings = doStub( "settings" )
 
-    -- printTable( t )
-    return t
-end
-local settings = {}
-
-local _sets = {}
-local _usets = {}
-
-function settings.define( name, opt )
-    expect( 1, name, "string" )
-    expect( 2, opt, "table", "nil" )
-    opt = opt or {}
-    if opt.type ~= nil then
-        field( opt, "type", "string" )
-        -- if type( opt.type ) ~= "string" then
-        --     error( "bad field 'type' (string expected, got " .. type( opt.type ) .. ")", 2 )
-        -- end
-        if opt.type ~= "string" and
-           opt.type ~= "number" and
-           opt.type ~= "table" and
-           opt.type ~= "boolean" then error( "Unknown type \"" .. tostring( opt.type ) .. "\"", 2 ) end
-    end
-    _sets[name] = opt
-end
-function settings.undefine( name )
-    expect( 1, name, "string" )
-    _sets[name] = nil
-end
-function settings.set( name, val )
-    expect( 1, name, "string" )
-    expect( 2, val, "string", "table", "boolean", "number" )
-    _usets[name] = textutils.serialize( val )
-end
-function settings.unset( name )
-    expect( 1, name, "string" )
-    _usets[name] = ( _sets[name] and _sets[name].default ) or nil
-end
-function settings.get( name, def )
-    expect( 1, name, "string" )
-    local x = _usets[name] or def or ( _sets[name] and _sets[name].default ) or nil
-    if x then
-        x = textutils.deserialize( x )
-    end
-    return x
-end
-function settings.getDetails( name )
-    expect( 1, name, "string" )
-    local t = _sets[name] and t_cpy( _sets[name] ) or {}
-    t.value = _usets[name] or def or ( _sets[name] and _sets[name].default ) or nil
-    return t
-end
-function settings.clear()
-    for k, name in pairs( _usets ) do
-        _usets[name] = _sets[name] and _sets[name].default or nil
-    end
-end
-function settings.getNames()
-    return t_gk( _sets )
-end
-function settings.save( pth )
-    expect( 1, name, "string", "nil" )
-    pth = pth or ".settings"
-    
-    local f = fs.open( pth, "w" )
-    if not f then return false end
-    f.write( textutils.serialize( _usets ) )
-    f:close()
-    return true
-end
-
-_G.fs = fs
-_G.os = os
 _G.bit32 = bit
-_G.settings = settings
 _G.term = term
 term.native = function() return term end
 _G.PRINT = print
 
 local rs_in  = { right = 0, left = 0, top = 0, bottom = 0, front = 0, back = 0 }
 local rs_out = t_cpy( rs_in )
-
-local rs = {}
-_G.redstone = rs
-_G.rs = rs
-
-local VALID_SIDES = { top = true, bottom = true, left = true, right = true, front = true, back = true }
-local function SIDE( s )
-    if not VALID_SIDES[s] then error( "bad argument #1 (unknown option " .. s .. ")" ) end
-end
-
-function rs.setOutput( side, on )
-    expect( 1, side, "string" )
-    expect( 2, on, "boolean" )
-    SIDE( side )
-
-    rs_out[side] = on and 15 or 0
-end
-function rs.getOutput( side )
-    expect( 1, side, "string" )
-    SIDE( side )
-
-    return rs_out[side] > 0
-end
-function rs.setAnalogOutput( side, strength )
-    expect( 1, side, "string" )
-    range( strength, 0, 15 )
-    SIDE( side )
-
-    rs_out[side] = strength
-end
-function rs.getAnalogOutput( side )
-    expect( 1, side, "string" )
-    SIDE( side )
-
-    return rs_out[side]
-end
-
-rs.getAnalogueOutput = rs.getAnalogOutput
-rs.setAnalogueOutput = rs.setAnalogOutput
-
-function rs.getInput( side )
-    expect( 1, side, "string" )
-    SIDE( side )
-
-    return rs_in[side] > 0
-end
-function rs.getAnalogInput( side )
-    expect( 1, side, "string" )
-    SIDE( side )
-
-    return rs_in[side]
-end
 
 local clrs = {}
 clrs["0"] = Color( 240, 240, 240 )
@@ -508,29 +173,14 @@ function term.nativePaletteColor( clr )
 end
 term.nativePaletteColour = term.nativePaletteColor
 
-rs.getAnalogueInput = rs.getAnalogInput
-
--- too lazy to implement bundled cables
-local function nopnil() end
-local function nopzero() return 0 end
-rs.setBundledOutput = nopnil
-rs.getBundledOutput = nopzero
-rs.getBundledInput = nopzero
-rs.testBundledInput = nopzero
+_G.rs = doStub( "redstone" )
+_G.redstone = _G.rs
 
 table.unpack = unpack
 function table.pack( ... )
     local t = { ... }
     t.n = select( "#", ... )
     return t
-end
-
-function rs.getSides()
-    return {
-        "bottom", "top",
-        "left", "right",
-        "front", "back",
-    }
 end
 
 function _G.loadstring( chunk, id, env )
@@ -553,18 +203,6 @@ local c_res = coroutine.resume
 local c_cre = coroutine.create
 local c_yie = coroutine.yield
 
-local t_sim = timer.simple
-
--- function coroutine.resume( ... )
---     local stk
---     local r = { xpcall( c_res, function( _, st )
---         stk = st
---     end, ... ) }
---     if not r[1] then
---         return false, stk
---     end
---     return unpack( r )
--- end
 function coroutine.resume( ... )
     return pcall( c_res, ... )
 end
@@ -581,6 +219,8 @@ function os.shutdown()
     h_run( "CC:T.SHUTDOWN", false )
     h_run( "CC:T.STATUS", false, "os.shutdown()" )
 end
+
+local t_sim = timer.simple
 function os.reboot()
     h_run( "CC:T.SHUTDOWN", true )
     h_run( "CC:T.STATUS", false, "os.reboot()" )
@@ -617,6 +257,8 @@ local t_empty = table.empty
 local t_rem = table.remove
 local powered = false
 local MAIN = off
+
+require = nil
 
 timer.create( "evqueue", 0.05, 0, function()
     if not powered then return end

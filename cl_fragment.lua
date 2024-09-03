@@ -1,15 +1,13 @@
+-- This file used to be for running on server-side
+
 local HEADROOM = 1000
 
 local IGNORE = {}
 IGNORE["/unused"] = true
 IGNORE["/main.lua"] = true
-IGNORE["/main_og.lua"] = true
-
-IGNORE["/includes.lua"] = true
-IGNORE["/coroutine_von.lua"] = true
-
-IGNORE["/cl_fragment.lua"] = true
-IGNORE["/old_cl_frag.lua"] = true
+IGNORE["/readme.md"] = true
+IGNORE["/todo.md"] = true
+IGNORE["/.gitignore"] = true
 
 local MAX_NET_BYTES = net.getBytesLeft()
 local _print = _G.print
