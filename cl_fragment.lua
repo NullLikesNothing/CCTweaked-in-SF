@@ -138,6 +138,11 @@ local cblink = t_ct()
 local NOSIGNAL = { cursorBlink = true, cursorX = 1, cursorY = 1, text = { "NO SIGNAL" }, fore = { "eeeeeeeee" }, back = { "fffffffff" } }
 local seri = NOSIGNAL
 
+local drawRect = render.drawRectFast
+local drawText = render.drawText
+local setClr = render.setColor
+local sub = string.sub
+
 local termx, termy = 0, 0
 local fnt = render.createFont("DejaVu Sans Mono",16,500,false,false,false,false,0,false,0)
 local function drawTerm()
@@ -148,14 +153,17 @@ local function drawTerm()
     render.clear( clrs.b )
 
     if not seri then return end
+    local fg = seri.fore
+    local bg = seri.back
+
     for i = 1, #seri.text do
         local t = seri.text[i]
         for j = 1, #t do
-            render.setColor( clrs[ seri.back[i]:sub( j, j ) ] )
-            render.drawRectFast( ( j - 1 ) * 8, ( i - 1 ) * 16, 8, 16 )
+            setClr( clrs[ sub( bg[i], j, j ) ] )
+            drawRect( ( j - 1 ) * 8, ( i - 1 ) * 16, 8, 16 )
 
-            render.setColor( clrs[ seri.fore[i]:sub( j, j ) ] )
-            render.drawText( ( j - 1 ) * 8, ( i - 1 ) * 16, t:sub( j, j ) )
+            setClr( clrs[ sub( fg[i], j, j ) ] )
+            drawText( ( j - 1 ) * 8, ( i - 1 ) * 16, sub( t, j, j ) )
         end
     end
 
@@ -176,10 +184,110 @@ hook.add( "CC:T.STATUS", "", function( powered, reason )
     power = powered
     print( "Computer is ", power and "ON" or "OFF", reason )
 end )
-hook.add( "CC:T.EXEC", "", function( ret, sTerm )
-    print( "exec", unpack( ret ) )
+hook.add( "CC:T.EXEC", "", function( success, ... )
+    if success then return end
+    print( "exec fail", ... )
+end )
+hook.add( "CC:T.FRAME", "", function( buff )
     h_once( "RenderOffScreen", "CC:T", drawTerm )
-    seri = json.decode( sTerm )
+    seri = json.decode( buff )
+end )
+
+local key_lookup = {}
+for k, v in pairs( KEY ) do
+    key_lookup[v] = k
+end
+local rebind = {
+    ctrl = "leftCtrl",
+    shift = "leftShift",
+    rcontrol = "rightCtrl",
+    rshift = "rightShift",
+    ["0"] = "zero",
+    ["1"] = "one",
+    ["2"] = "two",
+    ["3"] = "three",
+    ["key4"] = "four",
+    ["key5"] = "five",
+    ["key6"] = "six",
+    ["key7"] = "seven",
+    ["key8"] = "eight",
+    ["key9"] = "nine",
+    ["="] = "equals",
+    [","] = "comma",
+    ["."] = "period",
+    backquote = "grave",
+}
+local PRINTABLE = {}
+PRINTABLE.SPACE      = { " ", " " }
+PRINTABLE.SEMICOLON  = { ";", ":" }
+PRINTABLE.APOSTROPHE = { "'", '"' }
+PRINTABLE.SLASH      = { "/", "?" }
+PRINTABLE.COMMA      = { ",", "<" }
+PRINTABLE.PERIOD     = { ".", ">" }
+PRINTABLE.LBRACKET   = { "[", "{" }
+PRINTABLE.RBRACKET   = { "]", "}" }
+PRINTABLE.BACKSLASH  = { "\\", "|" }
+PRINTABLE.MINUS      = { "-", "_" }
+PRINTABLE.GRAVE      = { "`", "~" }
+
+local PRESSED = {}
+local shift = false
+local ctrl = false
+hook.add( "playerchat", "", function( p, t )
+    if p ~= player() then return end
+    if t ~= "cc" then return end
+
+    if not input.canLockControls() then return print("can't lock") end
+    timer.simple( 0, function()
+        input.lockControls( true )
+    end )
+    print( "note: you cannot use ALT!" )
+end )
+
+hook.add( "inputPressed", "", function( key )
+    if not power then return end
+    if not keys then return end
+
+    local k = key_lookup[key]
+    if not k then return end
+    k = k:lower()
+    if rebind[k] then k = rebind[k] end
+
+    if k == "leftShift" or k == "rightShift" then
+        PRESSED[k] = true
+        shift = true
+    end
+    if not input.isControlLocked() then return end
+    PRESSED[k] = true
+
+    local cck = keys[k]
+    if not cck then return end
+    hook.run( "CC:T.QUEUE", "key", cck, false )
+    if PRINTABLE[k:upper()] or #k == 1 then
+        hook.run( "CC:T.QUEUE", "char", ( PRINTABLE[k:upper()] or {} )[shift and 2 or 1] or ( shift and k:upper() or k ) )
+    end
+end )
+hook.add( "inputReleased", "", function( key )
+    if not power then return end
+    if not keys then return end
+
+    local k = key_lookup[key]
+    if not k then return end
+    k = k:lower()
+    if rebind[k] then k = rebind[k] end
+    if not PRESSED[k] then return end
+    PRESSED[k] = nil
+
+    if k == "leftShift" or k == "rightShift" then
+        shift = PRESSED.leftShift or PRESSED.rightShift or false
+    end
+    if k == "leftControl" or k == "rightConsole" then
+        ctrl = PRESSED.leftControl or PRESSED.rightControl or false
+    end
+
+    local cck = keys[k]
+    if not cck then return end
+    hook.run( "CC:T.QUEUE", "key_up", cck )
 end )
 
 local function drawTermRT()
