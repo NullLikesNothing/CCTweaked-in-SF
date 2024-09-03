@@ -176,6 +176,8 @@ term.nativePaletteColour = term.nativePaletteColor
 _G.rs = doStub( "redstone" )
 _G.redstone = _G.rs
 
+_G.peripheral = doStub( "peripheral" )
+
 table.unpack = unpack
 function table.pack( ... )
     local t = { ... }
@@ -202,6 +204,7 @@ local pcall = pcall
 local c_res = coroutine.resume
 local c_cre = coroutine.create
 local c_yie = coroutine.yield
+local c_sta = coroutine.status
 
 function coroutine.resume( ... )
     return pcall( c_res, ... )
@@ -241,17 +244,8 @@ function os.startTimer( n )
     local x = { off = math.round( n / 0.05 ) * 0.05, bgn = curtime() }
     local y = rnd( 0, 0xFFFFFF )
     timers[y] = x
+    print( "start timer", y )
 end
-local pairs = pairs
-hook.add( "tick", "CC:T.Timers", function()
-    local n = curtime()
-    for k, v in pairs( timers ) do
-        if v.bgn + v.off < n then
-            h_run( "CC:T.QUEUE", "timer", k )
-            timers[k] = nil
-        end
-    end
-end )
 
 local t_empty = table.empty
 local t_rem = table.remove
@@ -260,22 +254,43 @@ local MAIN = off
 
 require = nil
 
+local pairs = pairs
+local hasFrameUpdate = false
+local cpuAverage, cpuMax = cpuAverage, cpuMax
 timer.create( "evqueue", 0.05, 0, function()
     if not powered then return end
+    if cpuAverage() > cpuMax() * 0.5 then return end
+
+    local n = curtime()
+    for k, v in pairs( timers ) do
+        if v.bgn + v.off < n then
+            print( "end timer", k )
+            queue[#queue + 1] = { "timer", k }
+            timers[k] = nil
+        end
+    end
+
     local n = t_rem( evQueue, 1 )
     if not n then return end
 
-    local ret = { coroutine.resume( MAIN, unpack( n, 1, n.n ) ) }
-    hook.run( "CC:T.EXEC", ret, term.serialise() )
-    if coroutine.status( MAIN ) ~= "dead" then return end
+    local ret = { c_res( MAIN, unpack( n, 1, n.n ) ) }
+    hasFrameUpdate = true
+    hook.run( "CC:T.EXEC", ret )
+    if c_sta( MAIN ) ~= "dead" then return end
 
     hook.run( "CC:T.SHUTDOWN", false )
     hook.run( "CC:T.STATUS", false, "DEAD" )
 end )
+timer.create( "CC:T.UpdateFrame", 0.5, 0, function()
+    if not hasFrameUpdate then return end
+    if cpuAverage() > cpuMax() * 0.5 then return end
+    hasFrameUpdate = false
+    hook.run( "CC:T.FRAME", term.serialise() )
+end )
 
 local off = coroutine.create( function()
     while true do
-        coroutine.yield( "Not booted!" )
+        c_yie( "Not booted!" )
     end
 end )
 local bios = assert( loadstring( scripts["bios.lua"], "bios.lua" ) )
@@ -284,12 +299,13 @@ local bios = assert( loadstring( scripts["bios.lua"], "bios.lua" ) )
 hook.add( "CC:T.RUN", "", function( ... )
     if not powered then return false end
 
-    local ret = { coroutine.resume( MAIN, ... ) }
-    hook.run( "CC:T.EXEC", ret, term.serialise() )
+    local ret = { c_res( MAIN, ... ) }
+    hasFrameUpdate = true
+    h_run( "CC:T.EXEC", ret )
 
-    if coroutine.status( MAIN ) ~= "dead" then return end
-    hook.run( "CC:T.SHUTDOWN", false )
-    hook.run( "CC:T.STATUS", false, "DEAD" )
+    if c_sta( MAIN ) ~= "dead" then return end
+    h_run( "CC:T.SHUTDOWN", false )
+    h_run( "CC:T.STATUS", false, "DEAD" )
 end )
 hook.add( "CC:T.QUEUE", "", function( ... )
     if not powered then return false end
