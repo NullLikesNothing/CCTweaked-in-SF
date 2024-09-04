@@ -347,16 +347,16 @@ net.send()
 
 net.receive( "CC:T.SendROM", function()
     local sendROM = net.readBool()
+    enableHud( nil, true )
     
     local hashExists = file.exists( "cc_tweaked.rom.hash.txt" )
     if sendROM or not hashExists then
         if not sendROM then
-            net.start( "CC:T.Hash" )
-            net.writeBool( false )
-            net.send()
-        else
             print( "Server requests ROM hash, but we don't have it" )
         end
+        net.start( "CC:T.Hash" )
+        net.writeBool( false )
+        net.send()
 
         hook.add( "Think", "", function()
             chkmax()
@@ -370,6 +370,7 @@ net.receive( "CC:T.SendROM", function()
                     prog = 0
         
                     hook.remove( "Think", "" )
+                    print( "Sending ROM" )
                     hook.add( "PostDrawHUD", "", sendPackage )
         
                     break

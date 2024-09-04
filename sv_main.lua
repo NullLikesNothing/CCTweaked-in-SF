@@ -3,15 +3,11 @@ local print = print
 
 local bit_compress = bit.compress
 hook.add( "CC:T.FRAME", "", function( buff )
-    -- h_once( "RenderOffScreen", "CC:T", drawTerm )
-
     net.start( "termBuffer" )
     local comp = bit_compress( buff )
     net.writeUInt( #comp, 16 )
     net.writeData( comp, #comp )
     net.send()
-
-    -- seri = json.decode( buff )
 end )
 
 local seri = { cursorBlink = true, cursorX = 1, cursorY = 1, text = { "NO SIGNAL" }, fore = { "eeeeeeeee" }, back = { "fffffffff" }, palette = json.decode( '{"0":15790320,"1":15905331,"2":15040472,"3":10072818,"4":14605932,"5":8375321,"6":15905484,"7":5000268,"8":10066329,"9":5020082,"f":1118481,"e":13388876,"d":5744206,"c":8349260,"b":3368652,"a":11691749}' ) }
@@ -43,32 +39,30 @@ hook.add( "net", "CC:Tweaked.PKG", function( name, _, ply )
 
     if net.readBool() then
         makeProgress( "CC:Tweaked Package status: 100%\nDecompressing" )
-        timer.simple( 1, function()
-            setUserdata( "CC:T-" .. PKG )
-            PKG = bit.decompress( PKG )
-            makeProgress( "CC:Tweaked Package status: 100%\nDecompressing - Done\nMake FS" )
-            timer.simple( 1, function()
-                local files = bit.stringToTable( PKG )
-                local errored = false
-                local errorStr = "Critical error!\n"
-                local function chkFile( n )
-                    if files[n] then return end
-                    errorStr = string.trim( errorStr .. "\n" .. "- No " .. n )
-                    errored = true
-                end
-                chkFile( "sf_bios.lua" )
-                chkFile( "bios.lua" )
-                
-                if errored then
-                    makeProgress( errorStr )
-                    error( errorStr )
-                    return
-                end
+        setUserdata( "CC:T-" .. PKG )
+        PKG = bit.decompress( PKG )
+        makeProgress( "CC:Tweaked Package status: 100%\nDecompressing - Done\nMake FS" )
 
-                assert( loadstring( files["sf_bios.lua"], "sf_bios.lua" ) )( files )
-                makeProgress( "Decompressing - Done\nMake FS - Done\nWaiting for boot signal." )
-            end )
-        end )
+        local files = bit.stringToTable( PKG )
+        local errored = false
+        local errorStr = "Critical error!\n"
+        local function chkFile( n )
+            if files[n] then return end
+            errorStr = string.trim( errorStr .. "\n" .. "- No " .. n )
+            errored = true
+        end
+        chkFile( "sf_bios.lua" )
+        chkFile( "bios.lua" )
+        
+        if errored then
+            makeProgress( errorStr )
+            error( errorStr )
+            return
+        end
+
+        assert( loadstring( files["sf_bios.lua"], "sf_bios.lua" ) )( files )
+        makeProgress( "Decompressing - Done\nMake FS - Done\nWaiting for boot signal." )
+
         return
     end
     local progress = net.readFloat()
@@ -187,14 +181,10 @@ for k, v in pairs( PRINTABLE ) do
 end
 
 local PRESSED = {}
-local power = false
-hook.add( "CC:T.STATUS", "_INTERNAL", function( b )
-    power = b
-    print( "new status is ", b )
-end )
+local onl = false
 
 hook.add( "inputPressed", "", function( key )
-    if not power then return end
+    if not onl then return end
     if not keys then return end
 
     local k = key_lookup[key]
@@ -225,7 +215,7 @@ hook.add( "inputPressed", "", function( key )
     end
 end )
 hook.add( "inputReleased", "", function( key )
-    if not power then return end
+    if not onl then return end
     if not keys then return end
 
     local k = key_lookup[key]
@@ -255,7 +245,6 @@ local h_run = hook.run
 local ipairs = ipairs
 local low, UPP = string.lower, string.upper
 local function upp( s )
-    print( s, rebind[low( s )] )
     local t = PRINTABLE[UPP( rebind[low( s )] or "" )]
     if t then
         return t
@@ -292,7 +281,6 @@ hook.add( "PlayerSay", "", function( ply, txt )
                             h_run( "CC:T.QUEUE", "key_up", cck )
                         end
                     end
-                    print( k )
                     k = ""
                 else
                     k = k .. j
@@ -320,7 +308,6 @@ hook.add( "PlayerSay", "", function( ply, txt )
     end
 end )
 
-local print = print
 local unpack = unpack
 
 local net = table.copy( net )
@@ -336,22 +323,18 @@ net.receive( "CC:T.QUEUE", function( _, ply )
     end
 end )
 
-local onl = false
 net.receive( "CC:T.STATUS", function( _, ply )
     if ply ~= owner() then return end
     local b = net.readBool()
 
     if onl == b then return end
     if b then
-        print( "boot her up" )
         makeProgress( "Starting computer..." )
         hook.run( "CC:T.STATUS", true, "Manual" )
-        print( hook.run( "CC:T.BOOT" ) )
+        hook.run( "CC:T.BOOT" )
     else
-        print( "shut her down" )
-        print( hook.run( "CC:T.SHUTDOWN", false ) )
+        hook.run( "CC:T.SHUTDOWN", false )
         hook.run( "CC:T.STATUS", false, "Forced" )
-        -- makeProgress( "Computer offline: forced" )
     end
 end )
 hook.add( "CC:T.STATUS", "main", function( b, rsn )
@@ -359,14 +342,3 @@ hook.add( "CC:T.STATUS", "main", function( b, rsn )
     if b then return end
     makeProgress( "Computer offline: " .. tostring( rsn ) )
 end )
-
--- net.receive( "termBuffer", function( _, ply )
---     if ply ~= owner() then return end
-
---     local len = net.readUInt( 16 )
-
---     net.start( "termBuffer" )
---     net.writeUInt( len, 16 )
---     net.writeData( net.readData( len ), len )
---     net.send()
--- end )
