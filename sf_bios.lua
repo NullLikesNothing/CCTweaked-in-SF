@@ -244,6 +244,7 @@ function os.startTimer( n )
     local y = rnd( 0, 0xFFFFFF )
     timers[y] = x
     print( "start timer", y )
+    return y
 end
 
 local t_empty = table.empty
