@@ -9,6 +9,8 @@ IGNORE["/readme.md"] = true
 IGNORE["/todo.md"] = true
 IGNORE["/.gitignore"] = true
 IGNORE["/cl_fragment.lua"] = true
+IGNORE["/cl_stub.lua"] = true
+IGNORE["/sv_main.lua"] = true
 
 local MAX_NET_BYTES = net.getBytesLeft()
 local _print = _G.print
@@ -18,9 +20,7 @@ local function recursiveFind( dir, dirname )
     dirname = dirname or ""
     local x, y = file.findInGame( BASE .. dir .. "*" )
     for _, v in ipairs( y ) do
-        if IGNORE[dirname .. "/" .. v] then
-            _print( "ignoring", dirname .. "/" .. v )
-        else
+        if not IGNORE[dirname .. "/" .. v] then
             local ret = recursiveFind( dir .. v .. "/", v )
             table.add( x, ret )
         end
@@ -30,7 +30,6 @@ local function recursiveFind( dir, dirname )
         if not IGNORE[dirname .. "/" .. v] then
             x[i] = string.normalizePath( dirname .. "/" .. v )
         else
-            _print( "ignoring", dirname .. "/" .. v )
             table.remove( x, i )
         end
     end
@@ -48,7 +47,7 @@ local coro = coroutine.create( function()
         files[v] = file.readInGame( BASE .. v )
         coroutine.yield( v, files[v] )
     end
-    return files
+    return bit.tableToString( files )
 end )
 
 local prog = 0
@@ -68,8 +67,9 @@ local function sendPackage()
         frem = frem:sub( #s + 1 )
         prog = prog + #s + 1
 
-        net.start( "CC:Tweaked" )
+        net.start( "CC:Tweaked.PKG" )
         net.writeBool( false )
+        net.writeFloat( prog / ttl * 100 )
         net.writeUInt( #s, NET_BITS )
         net.writeData( s, #s )
         net.send()
@@ -77,9 +77,12 @@ local function sendPackage()
         if prog > ttl then
             hook.remove( "PostDrawHUD", "" )
 
-            net.start( "CC:Tweaked" )
+            net.start( "CC:Tweaked.PKG" )
             net.writeBool( true )
             net.send()
+            
+            hook.remove( "PostDrawHUD", "" )
+            return
         end
     else
         render.drawText( 200, 250, "Waiting for net bytes to recover..." )
@@ -87,29 +90,6 @@ local function sendPackage()
 
     render.drawText( 200, 200, string.format( "Package status:\nBytes: %s out of %s (%.2f%%)\nNet usage: %s/%s (%.2f%%)", prog, ttl, prog / ttl * 100, bytes, MAX_NET_BYTES, 100 - bytes / MAX_NET_BYTES * 100 ) )
 end
-
--- CC:Tweaked.Event
-concmd( "paint_decal \"\"")
-timer.create( "evt", 0.1, 0, function()
-    local val = convar.getString( "paint_decal" )
-    if val == "" then return end
-    -- val = val:gsub("::SEMICOLON::",";")
-    concmd( "paint_decal \"\"" )
-
-    hook.run( "CC:T.RUN" )
-    do return end
-    local s = pcall( function()
-        von.deserialize( val )
-    end )
-    if not s then
-        print( "Invalid vON!")
-        return
-    end
-
-    net.start( "CC:Tweaked.Event" )
-    net.writeString( val )
-    net.send()
-end )
 
 local clrs = {}
 clrs["0"] = Color( 240, 240, 240 )
@@ -232,6 +212,8 @@ local rebind = {
     [","] = "comma",
     ["."] = "period",
     backquote = "grave",
+    uparrow = "up",
+    downarrow = "down",
 }
 local PRINTABLE = {}
 PRINTABLE.SPACE      = { " ", " " }
@@ -263,7 +245,8 @@ local shift = false
 local ctrl = false
 hook.add( "playerchat", "", function( p, t )
     if p ~= player() then return end
-    if t == "cc" then
+
+    if t == "cc.lock" then
         if not input.canLockControls() then return print("can't lock") end
         timer.simple( 0, function()
             input.lockControls( true )
@@ -276,6 +259,12 @@ hook.add( "playerchat", "", function( p, t )
             hook.run( "CC:T.STATUS", true, "User forced reboot" )
             hook.run( "CC:T.BOOT" )
         end )
+    elseif t == "cc.boot" then
+        print( "run boot hook" )
+        hook.run( "CC:T.BOOT" )
+    elseif t == "cc.shutdown" then
+        print( "run shutdown hook" )
+        hook.run( "CC:T.BOOT", false )
     end
 end )
 
@@ -292,8 +281,16 @@ hook.add( "inputPressed", "", function( key )
         PRESSED[k] = true
         shift = true
     end
+    if k == "leftCtrl" or k == "rightCtrl" then
+        PRESSED[k] = true
+        ctrl = true
+    end
     if not input.isControlLocked() then return end
     PRESSED[k] = true
+    if ctrl and k == "t" then
+        hook.run( "CC:T.QUEUE", "terminate" )
+        return
+    end
 
     local cck = keys[k]
     if not cck then return end
@@ -316,8 +313,8 @@ hook.add( "inputReleased", "", function( key )
     if k == "leftShift" or k == "rightShift" then
         shift = PRESSED.leftShift or PRESSED.rightShift or false
     end
-    if k == "leftControl" or k == "rightConsole" then
-        ctrl = PRESSED.leftControl or PRESSED.rightControl or false
+    if k == "leftCtrl" or k == "rightCtrl" then
+        ctrl = PRESSED.leftCtrl or PRESSED.rightCtrl or false
     end
 
     local cck = keys[k]
@@ -342,34 +339,53 @@ local function drawTermRT()
     render.drawRect( 32 + ( seri.cursorX - 1 ) * 8, 28 + ( seri.cursorY - 1 ) * 16 + 16, 8, 4 )
 end
 
-hook.add( "DrawHUD", "Terminal", drawTermRT )
+-- hook.add( "DrawHUD", "Terminal", drawTermRT )
 
-hook.add( "Think", "", function()
-    chkmax()
-    for i = 1, 5 do
-        local x = coroutine.resume( coro )
-        if coroutine.status( coro ) == "dead" then
-            enableHud( nil, true )
-            assert( loadstring( files["sf_bios.lua"], "sf_bios.lua" ) )( files )
-            termx, termy = term.getSize()
+net.start( "CC:T.INIT" )
+net.writeStream( file.readInGame( "data/starfall/computercraft/sv_main.lua" ) )
+net.send()
 
-            timer.simple( 0, function()
-                hook.run( "CC:T.STATUS", true, "BOOT" )
-                hook.run( "CC:T.BOOT" )
-            end )
-            -- RUN( "key", keys.enter, false )
-
-            -- fstr = bit.compress( x )
-            -- frem = fstr
-            -- ttl = #fstr
-            -- prog = 0
-
-            hook.remove( "Think", "" )
-
-            -- enableHud( nil, true )
-            -- hook.add( "PostDrawHUD", "", sendPackage )
-
-            break
+net.receive( "CC:T.SendROM", function()
+    local sendROM = net.readBool()
+    
+    local hashExists = file.exists( "cc_tweaked.rom.hash.txt" )
+    if sendROM or not hashExists then
+        if not sendROM then
+            net.start( "CC:T.Hash" )
+            net.writeBool( false )
+            net.send()
+        else
+            print( "Server requests ROM hash, but we don't have it" )
         end
+
+        hook.add( "Think", "", function()
+            chkmax()
+            for i = 1, 5 do
+                local x = coroutine.resume( coro )
+                if coroutine.status( coro ) == "dead" then
+                    fstr = bit.compress( x )
+                    file.write( "cc_tweaked.rom.hash.txt", bit.md5( fstr ) )
+                    frem = fstr
+                    ttl = #fstr
+                    prog = 0
+        
+                    hook.remove( "Think", "" )
+                    hook.add( "PostDrawHUD", "", sendPackage )
+        
+                    break
+                end
+            end
+        end )
+    elseif hashExists then
+        local hash = file.read( "cc_tweaked.rom.hash.txt" )
+        net.start( "CC:T.Hash" )
+        net.writeBool( hash ~= nil )
+        if hash ~= nil then
+            net.writeString( hash )
+        end
+        net.send()
     end
 end )
+
+assert( loadstring( file.readInGame( "data/starfall/computercraft/cl_stub.lua" ), "cl_stub.lua" ) )()
+hook.add( "Think", "", chkmax )

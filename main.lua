@@ -3,16 +3,18 @@
 --@shared
 --@xowneronly
 
+NET_BITS = 16
 if SERVER then
-    net.receive( "termBuffer", function( _, ply )
+    hook.add( "net", "CC:T.PKG", function( name, _, ply )
         if ply ~= owner() then return end
+        if name ~= "CC:T.INIT" then return end
 
-        local len = net.readUInt( 16 )
-
-        net.start( "termBuffer" )
-        net.writeUInt( len, 16 )
-        net.writeData( net.readData( len ), len )
-        net.send()
+        hook.remove( "net", "CC:T.PKG" )
+        net.readStream( function( x )
+            assert( loadstring( x, "sv_main.lua" ) )()
+            net.start( "CC:T.READY" )
+            net.send( ply )
+        end )
     end )
     return
 end
