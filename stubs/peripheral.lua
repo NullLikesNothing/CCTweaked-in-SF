@@ -16,4 +16,12 @@ function peripheral.isPresent( name )
     return peripherals[name] ~= nil
 end
 
+local NOP = function() end
+peripheral.hasType = NOP
+peripheral.getMethods = NOP
+peripheral.getName = NOP
+peripheral.call = NOP
+peripheral.wrap = NOP
+peripheral.find = NOP
+
 return peripheral

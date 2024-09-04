@@ -143,6 +143,7 @@ local drawText = render.drawText
 local setClr = render.setColor
 local sub = string.sub
 
+local print = print
 local termx, termy = 0, 0
 local fnt = render.createFont("DejaVu Sans Mono",16,500,false,false,false,false,0,false,0)
 local function drawTerm()
@@ -159,10 +160,16 @@ local function drawTerm()
     for i = 1, #seri.text do
         local t = seri.text[i]
         for j = 1, #t do
-            setClr( clrs[ sub( bg[i], j, j ) ] )
+            local s, e = pcall( setClr, clrs[ sub( bg[i], j, j ) ] )
+            if not s then
+                -- print( "BG", e, #bg[i], bg[i], sub( bg[i], j, j ) )
+            end
             drawRect( ( j - 1 ) * 8, ( i - 1 ) * 16, 8, 16 )
 
-            setClr( clrs[ sub( fg[i], j, j ) ] )
+            s, e = pcall( setClr, clrs[ sub( fg[i], j, j ) ] )
+            if not s then
+                -- print( "FG", e, #fg[i], fg[i], sub( fg[i], j, j ) )
+            end
             drawText( ( j - 1 ) * 8, ( i - 1 ) * 16, sub( t, j, j ) )
         end
     end
@@ -188,8 +195,17 @@ hook.add( "CC:T.EXEC", "", function( success, ... )
     if success then return end
     print( "exec fail", ... )
 end )
+
+local bit_compress = bit.compress
 hook.add( "CC:T.FRAME", "", function( buff )
     h_once( "RenderOffScreen", "CC:T", drawTerm )
+
+    net.start( "termBuffer" )
+    local comp = bit_compress( buff )
+    net.writeUInt( #comp, 16 )
+    net.writeData( comp, #comp )
+    net.send()
+
     seri = json.decode( buff )
 end )
 
@@ -228,20 +244,39 @@ PRINTABLE.LBRACKET   = { "[", "{" }
 PRINTABLE.RBRACKET   = { "]", "}" }
 PRINTABLE.BACKSLASH  = { "\\", "|" }
 PRINTABLE.MINUS      = { "-", "_" }
+PRINTABLE.EQUALS     = { "=", "+" }
 PRINTABLE.GRAVE      = { "`", "~" }
+
+PRINTABLE.ONE   = { "1", "!" }
+PRINTABLE.TWO   = { "2", "@" }
+PRINTABLE.THREE = { "3", "#" }
+PRINTABLE.FOUR  = { "4", "$" }
+PRINTABLE.FIVE  = { "5", "%" }
+PRINTABLE.SIX   = { "6", "^" }
+PRINTABLE.SEVEN = { "7", "&" }
+PRINTABLE.EIGHT = { "8", "*" }
+PRINTABLE.NINE  = { "9", "(" }
+PRINTABLE.ZERO  = { "0", ")" }
 
 local PRESSED = {}
 local shift = false
 local ctrl = false
 hook.add( "playerchat", "", function( p, t )
     if p ~= player() then return end
-    if t ~= "cc" then return end
-
-    if not input.canLockControls() then return print("can't lock") end
-    timer.simple( 0, function()
-        input.lockControls( true )
-    end )
-    print( "note: you cannot use ALT!" )
+    if t == "cc" then
+        if not input.canLockControls() then return print("can't lock") end
+        timer.simple( 0, function()
+            input.lockControls( true )
+        end )
+        print( "note: you cannot use ALT!" )
+    elseif t == "cc.reboot" then
+        hook.run( "CC:T.SHUTDOWN", false )
+        hook.run( "CC:T.STATUS", false, "User forced reboot" )
+        timer.simple( 0.5, function()
+            hook.run( "CC:T.STATUS", true, "User forced reboot" )
+            hook.run( "CC:T.BOOT" )
+        end )
+    end
 end )
 
 hook.add( "inputPressed", "", function( key )

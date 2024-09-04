@@ -2,9 +2,21 @@ local rs = {}
 _G.redstone = rs
 _G.rs = rs
 
+local expect, range
+do
+    local e = require( "expect" )
+    expect = e.expect
+    range = e.range
+end
+
+local h_run = hook.run
+
+local rs_in  = { right = 0, left = 0, top = 0, bottom = 0, front = 0, back = 0 }
+local rs_out = table.copy( rs_in )
+
 local VALID_SIDES = { top = true, bottom = true, left = true, right = true, front = true, back = true }
 local function SIDE( s )
-    if not VALID_SIDES[s] then error( "bad argument #1 (unknown option " .. s .. ")" ) end
+    if not VALID_SIDES[s] then error( "bad argument #1 (unknown option " .. tostring( s ) .. ")" ) end
 end
 
 function rs.setOutput( side, on )
@@ -12,6 +24,7 @@ function rs.setOutput( side, on )
     expect( 2, on, "boolean" )
     SIDE( side )
 
+    h_run( "CC:T.RS.OUTPUT", side, on and 15 or 0 )
     rs_out[side] = on and 15 or 0
 end
 function rs.getOutput( side )
@@ -24,9 +37,19 @@ function rs.setAnalogOutput( side, strength )
     expect( 1, side, "string" )
     range( strength, 0, 15 )
     SIDE( side )
+    h_run( "CC:T.RS.OUTPUT", side, strength )
 
     rs_out[side] = strength
 end
+
+hook.add( "CC:T.RS.INPUT", "CC:T.Internal", function( side, strength )
+    expect( 1, side, "string" )
+    expect( 2, strength, "number" )
+    range( strength, 0, 15 )
+    SIDE( side )
+
+    rs_in[side] = strength
+end )
 function rs.getAnalogOutput( side )
     expect( 1, side, "string" )
     SIDE( side )

@@ -18,6 +18,11 @@ local ss = bit.stringstream
 local s_bw = string.startWith
 local spt = string.split
 local unpack = unpack
+local function pack( ... )
+    local t = { ... }
+    t.n = select( "#", ... )
+    return t
+end
 
 local function CLOSED_FILE()
     error( "attempt to use a closed file" )
@@ -27,7 +32,6 @@ local sub = string.sub
 local snp = string.normalizePath
 local fs = {}
 local _internal_fs
-local pack = table.pack
 local function traverse( pth, root )
     local last = root or fsys
     for i = 1, #pth do
@@ -71,8 +75,7 @@ function fs.open( file, mode )
         function t.flush()
             last.d = f:getString()
         end
-        function t.write( ... )
-            local t, n = { ... }, select( "#", ... )
+        function t.write( d )
             f:write( tostring( d ) )
         end
         function t.writeLine( d )
@@ -193,7 +196,7 @@ function fs.exists( pth )
     expect( 1, pth, "string" )
     pth = snp( pth )
     local ks = spt( pth, "/" )
-    local last = traverse( unpack( ks, 1, #ks ) )
+    local last = traverse( pack( unpack( ks, 1, #ks ) ) )
     return last ~= nil
 end
 function fs.isReadOnly( pth )
@@ -248,7 +251,7 @@ function fs.makeDir( pth )
     end
 end
 function fs.getFreeSpace()
-    return "unlimited"
+    return 2 ^ 22
 end
 function fs.getCapacity( pth )
     expect( 1, pth, "string" )
@@ -271,6 +274,16 @@ function fs.attributes( pth )
         modified = 0,
         size = 0
     }
+end
+function fs.delete( pth )
+    expect( 1, pth, "string" )
+    pth = snp( pth )
+    local ks = spt( pth, "/" )
+    local last = fsys
+    if pth == "" or ks[1] == "rom" then error( "/" .. pth .. ": Access denied" ) end
+    last = traverse( pack( unpack( ks, 1, #ks - 1 ) ) )
+    if not last then return end
+    last[ks[#ks]] = nil
 end
 function fs.getDrive( pth )
 
