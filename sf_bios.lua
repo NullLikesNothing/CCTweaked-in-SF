@@ -243,7 +243,6 @@ function os.startTimer( n )
     local x = { off = math.round( n / 0.05 ) * 0.05, bgn = curtime() }
     local y = rnd( 0, 0xFFFFFF )
     timers[y] = x
-    print( "start timer", y )
     return y
 end
 
@@ -264,7 +263,6 @@ timer.create( "evqueue", 0.05, 0, function()
     local n = curtime()
     for k, v in pairs( timers ) do
         if v.bgn + v.off < n then
-            print( "end timer", k )
             evQueue[#evQueue + 1] = { "timer", k }
             timers[k] = nil
         end
