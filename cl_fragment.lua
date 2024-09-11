@@ -5,12 +5,17 @@ local HEADROOM = 1000
 local IGNORE = {}
 IGNORE["/unused"] = true
 IGNORE["/main.lua"] = true
+IGNORE["/sv_main.lua"] = true
+
+IGNORE["/test.lua"] = true
+IGNORE["/tests"] = true
+
+IGNORE["/cl_fragment.lua"] = true
+IGNORE["/cl_stub.lua"] = true
+
 IGNORE["/readme.md"] = true
 IGNORE["/todo.md"] = true
 IGNORE["/.gitignore"] = true
-IGNORE["/cl_fragment.lua"] = true
-IGNORE["/cl_stub.lua"] = true
-IGNORE["/sv_main.lua"] = true
 
 local MAX_NET_BYTES = net.getBytesLeft()
 local _print = _G.print

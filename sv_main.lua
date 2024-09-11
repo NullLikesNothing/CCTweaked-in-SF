@@ -1,6 +1,7 @@
 -- DO NOT PLACE THIS ON IT'S OWN!
 local print = print
 
+local bit = table.copy( bit )
 local bit_compress = bit.compress
 hook.add( "CC:T.FRAME", "", function( buff )
     net.start( "termBuffer" )
@@ -61,7 +62,7 @@ hook.add( "net", "CC:Tweaked.PKG", function( name, _, ply )
         end
 
         assert( loadstring( files["sf_bios.lua"], "sf_bios.lua" ) )( files )
-        makeProgress( "Decompressing - Done\nMake FS - Done\nWaiting for boot signal." )
+        makeProgress( "CC:Tweaked Package status: 100%\nDecompressing - Done\nMake FS - Done\nWaiting for boot signal." )
 
         return
     end

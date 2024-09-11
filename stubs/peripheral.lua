@@ -22,6 +22,7 @@ peripheral.getMethods = NOP
 peripheral.getName = NOP
 peripheral.call = NOP
 peripheral.wrap = NOP
-peripheral.find = NOP
+peripheral.find = function() return {} end
+peripheral.getType = NOP
 
 return peripheral

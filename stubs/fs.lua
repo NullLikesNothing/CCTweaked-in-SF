@@ -196,7 +196,7 @@ function fs.exists( pth )
     expect( 1, pth, "string" )
     pth = snp( pth )
     local ks = spt( pth, "/" )
-    local last = traverse( pack( unpack( ks, 1, #ks ) ) )
+    local last = traverse( ks )
     return last ~= nil
 end
 function fs.isReadOnly( pth )
@@ -234,21 +234,20 @@ function fs.makeDir( pth )
     local ks = spt( pth, "/" )
     if ks[1] == "rom" then error( "/" .. pth .. ": Access denied" ) end
 
+    if pth == "" then return end
     local last = fsys
-    if pth ~= "" then
-        for i = 1, #ks - 1 do
-            if not last.f[ks[i]] then
-                return
-            end
-            last = last.f[ks[i]]
-        end
-        local d = last.f[ks[#ks]]
-        if d then
-            if d.t ~= "d" then error( "/" .. pth .. ": File exists" ) end
+    for i = 1, #ks - 1 do
+        if not last.f[ks[i]] then
             return
         end
-        last.f[ks[#ks]] = mkdir()
+        last = last.f[ks[i]]
     end
+    local d = last.f[ks[#ks]]
+    if d then
+        if d.t ~= "d" then error( "/" .. pth .. ": File exists" ) end
+        return
+    end
+    last.f[ks[#ks]] = mkdir()
 end
 function fs.getFreeSpace()
     return 2 ^ 22
@@ -285,8 +284,15 @@ function fs.delete( pth )
     if not last then return end
     last[ks[#ks]] = nil
 end
-function fs.getDrive( pth )
+function fs.getSize( pth )
+    expect( 1, pth, "string" )
+    pth = snp( pth )
+    local ks = spt( pth, "/" )
+    local x = traverse( ks )
+    if not x then error( "/" .. pth .. ": No such file" ) end
 
+    if x.t == "d" then return 0 end
+    return #x.d
 end
 
 _internal_fs = table.copy( fs )

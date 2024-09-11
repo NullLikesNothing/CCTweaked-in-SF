@@ -1,6 +1,4 @@
 local rs = {}
-_G.redstone = rs
-_G.rs = rs
 
 local expect, range
 do

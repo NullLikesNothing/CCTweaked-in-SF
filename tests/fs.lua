@@ -1,0 +1,22 @@
+if not shouldExist( "fs", fs ) then return end
+
+shouldExist( "fs.complete", fs.complete )
+shouldExist( "fs.find", fs.find )
+shouldExist( "fs.isDriveRoot", fs.isDriveRoot )
+shouldExist( "fs.combine", fs.combine )
+shouldExist( "fs.getName", fs.getName )
+shouldExist( "fs.getDir", fs.getDir )
+shouldExist( "fs.getSize", fs.getSize )
+shouldExist( "fs.exists", fs.exists )
+shouldExist( "fs.isDir", fs.isDir )
+shouldExist( "fs.isReadOnly", fs.isReadOnly )
+shouldExist( "fs.makeDir", fs.makeDir )
+shouldExist( "fs.move", fs.move )
+shouldExist( "fs.copy", fs.copy )
+
+shouldExist( "fs.delete", fs.delete )
+shouldExist( "fs.open", fs.open )
+shouldExist( "fs.getDrive", fs.getDrive )
+shouldExist( "fs.getFreeSpace", fs.getFreeSpace )
+shouldExist( "fs.getCapacity", fs.getCapacity )
+shouldExist( "fs.attributes", fs.attributes )
