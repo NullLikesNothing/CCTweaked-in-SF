@@ -48,6 +48,7 @@ local function unpackRGB(rgb)
         bit.band(rgb, 0xFF) / 255
 end
 
+local NO_COLOR = Color( 0, 0, 0 )
 render.createRenderTarget( "CC:T" )
 local function drawTerm()
     render.selectRenderTarget( "CC:T" )
@@ -63,10 +64,10 @@ local function drawTerm()
     for i = 1, #seri.text do
         local t = seri.text[i]
         for j = 1, #t do
-            setClr( clrs[ sub( bg[i], j, j ) ] )
+            setClr( clrs[ sub( bg[i], j, j ) ] or NO_COLOR )
             drawRect( ( j - 1 ) * 8, ( i - 1 ) * 16, 8, 16 )
 
-            setClr( clrs[ sub( fg[i], j, j ) ] )
+            setClr( clrs[ sub( fg[i], j, j ) ] or NO_COLOR )
             drawText( ( j - 1 ) * 8, ( i - 1 ) * 16, sub( t, j, j ) )
         end
     end
@@ -94,11 +95,12 @@ net.receive( "termBuffer", function()
     hook.once( "RenderOffScreen", "CC:T.DrawRT", drawTerm )
 end )
 
-local DEF_CLR = Color( 255, 0, 0, 127 )
 local function drawrt()
     render.setRenderTargetTexture( "CC:T" )
     local w, h = termx * 8, termy * 16
-    render.drawTexturedRectUV( 0, 0, w, h, 0, 0, w / 1024, h / 1024 )
+    local rw, rh = render.getResolution()
+    local aspect = w / h
+    render.drawTexturedRectUV( 0, 0, rw, rh / aspect, 0, 0, w / 1024, h / 1024 )
 
     local n = timer.curtime()
     if cblink < n then
@@ -108,8 +110,8 @@ local function drawrt()
 
     if not ( seri and seri.cursorBlink and cursorBlink ) then return end
 
-    render.setColor( clrs["0"] or DEF_CLR )
-    render.drawRect( ( seri.cursorX - 1 ) * 8, ( seri.cursorY - 1 ) * 16 + 12, 8, 4 )
+    render.setColor( clrs["0"] or NO_COLOR )
+    render.drawRect( ( seri.cursorX - 1 ) * aspect * 8, ( seri.cursorY - 1 ) * aspect * 16, 8 * aspect, 4 * aspect )
 end
 
 hook.add( "render", "CC:T.Terminal", drawrt )
